@@ -30,6 +30,8 @@ interface Props {
     renderResetPassword: boolean;
     renderRegistrationComponent: boolean;
     renderBasicLoginComponent: boolean;
+    renderSSOComponent: boolean;
+    ssoLoginURL: string;
     fetching: boolean;
     onSubmit(loginData: LoginData): void;
 }
@@ -37,6 +39,7 @@ interface Props {
 function LoginFormComponent(props: Props): JSX.Element {
     const {
         fetching, onSubmit, renderResetPassword, renderRegistrationComponent, renderBasicLoginComponent,
+        renderSSOComponent, ssoLoginURL,
     } = props;
 
     const authQuery = useAuthQuery();
@@ -175,6 +178,25 @@ function LoginFormComponent(props: Props): JSX.Element {
                         }
                     </>
                 )}
+                {
+                    renderSSOComponent && (
+                        <>
+                            {renderBasicLoginComponent && !credential && (
+                                <Row className='cvat-login-form-sso-divider' justify='center'>
+                                    <Text type='secondary'>or</Text>
+                                </Row>
+                            )}
+                            <Form.Item>
+                                <Button
+                                    className='cvat-credentials-action-button cvat-login-form-sso-button'
+                                    href={ssoLoginURL}
+                                >
+                                    Sign in with Microsoft
+                                </Button>
+                            </Form.Item>
+                        </>
+                    )
+                }
                 {
                     pluginsToRender.map(({ component: Component }, index) => (
                         <Component targetProps={props} targetState={{ credential }} key={index} />

@@ -10,6 +10,13 @@ class IAMConfig(AppConfig):
     name = "cvat.apps.iam"
 
     def ready(self):
+        from django.conf import settings
+
         from .signals import register_signals
 
         register_signals(self)
+
+        if getattr(settings, "SSO_ENABLED", False):
+            from .sso import register_sso_signals
+
+            register_sso_signals()

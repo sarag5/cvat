@@ -222,6 +222,22 @@ $social-google-background: #4286f5;
     }
 }
 
+.cvat-login-form-sso-divider {
+    margin: $grid-unit-size * 2 0;
+}
+
+.cvat-login-form-sso-button {
+    background-color: $background-color-1;
+    color: $text-color;
+    border: 1px solid $border-color-1;
+
+    &:hover {
+        background-color: $background-color-2 !important;
+        color: $text-color !important;
+        border: 1px solid $border-color-1 !important;
+    }
+}
+
 .cvat-password-reset-form-wrapper {
     @extend .cvat-login-form-wrapper;
 

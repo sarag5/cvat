@@ -287,6 +287,73 @@ ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = "/auth/email-confirmation"
 ACCOUNT_EMAIL_VERIFICATION_SENT_REDIRECT_URL = "/auth/email-verification-sent"
 INCORRECT_EMAIL_CONFIRMATION_URL = "/auth/incorrect-email-confirmation"
 
+# ---------------------------------------------------------------------------
+# Single Sign-On (SSO) via Microsoft Azure Entra ID (OpenID Connect)
+# ---------------------------------------------------------------------------
+# Turn the whole integration on/off.
+SSO_ENABLED = to_bool(os.getenv("CVAT_SSO_ENABLED", False))
+
+# When True, username/password login and self-registration are disabled so that
+# Entra ID becomes the only way to authenticate.
+SSO_DISABLE_BASIC_LOGIN = to_bool(os.getenv("CVAT_SSO_DISABLE_BASIC_LOGIN", False))
+IAM_BASIC_LOGIN_ENABLED = not (SSO_ENABLED and SSO_DISABLE_BASIC_LOGIN)
+
+# Entra ID application role values ("value" field of an app role) that grant CVAT
+# superuser/administrator rights. Every authenticated user without one of these
+# roles receives the default ("user") access level.
+SSO_ADMIN_ROLES = [
+    role.strip()
+    for role in os.getenv("CVAT_SSO_ADMIN_ROLES", "admin").split(",")
+    if role.strip()
+]
+
+# Link an incoming SSO identity to a pre-existing local account that shares the
+# same e-mail address instead of creating a duplicate user.
+SSO_CONNECT_BY_EMAIL = to_bool(os.getenv("CVAT_SSO_CONNECT_BY_EMAIL", True))
+
+if SSO_ENABLED:
+    SSO_AZURE_PROVIDER_ID = os.getenv("CVAT_SSO_AZURE_PROVIDER_ID", "azure")
+    SSO_AZURE_PROVIDER_NAME = os.getenv("CVAT_SSO_AZURE_PROVIDER_NAME", "Microsoft Entra ID")
+    SSO_AZURE_TENANT_ID = os.getenv("CVAT_SSO_AZURE_TENANT_ID", "")
+    SSO_AZURE_CLIENT_ID = os.getenv("CVAT_SSO_AZURE_CLIENT_ID", "")
+    SSO_AZURE_CLIENT_SECRET = os.getenv("CVAT_SSO_AZURE_CLIENT_SECRET", "")
+
+    if not (SSO_AZURE_TENANT_ID and SSO_AZURE_CLIENT_ID and SSO_AZURE_CLIENT_SECRET):
+        raise ImproperlyConfigured(
+            "CVAT_SSO_ENABLED is set, but one of CVAT_SSO_AZURE_TENANT_ID, "
+            "CVAT_SSO_AZURE_CLIENT_ID or CVAT_SSO_AZURE_CLIENT_SECRET is not provided."
+        )
+
+    INSTALLED_APPS += ["allauth.socialaccount.providers.openid_connect"]
+
+    SOCIALACCOUNT_ADAPTER = "cvat.apps.iam.sso.SSOSocialAccountAdapter"
+    SOCIALACCOUNT_AUTO_SIGNUP = True
+    SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+    SOCIALACCOUNT_EMAIL_REQUIRED = False
+    SOCIALACCOUNT_QUERY_EMAIL = True
+
+    SOCIALACCOUNT_PROVIDERS = {
+        "openid_connect": {
+            "APPS": [
+                {
+                    "provider_id": SSO_AZURE_PROVIDER_ID,
+                    "name": SSO_AZURE_PROVIDER_NAME,
+                    "client_id": SSO_AZURE_CLIENT_ID,
+                    "secret": SSO_AZURE_CLIENT_SECRET,
+                    "settings": {
+                        "server_url": (
+                            f"https://login.microsoftonline.com/{SSO_AZURE_TENANT_ID}/v2.0"
+                        ),
+                    },
+                },
+            ],
+        },
+    }
+
+    if SSO_DISABLE_BASIC_LOGIN:
+        # Avoid reversing the (now unregistered) basic login URL name.
+        LOGIN_URL = "/api/auth/sso/azure/login"
+
 # Django-RQ
 # https://github.com/rq/django-rq
 

@@ -15,6 +15,7 @@ const defaultState: ServerAPIState = {
         isBasicLoginEnabled: true,
         isPasswordResetEnabled: true,
         isPasswordChangeEnabled: true,
+        isSSOEnabled: false,
     },
 };
 
@@ -36,6 +37,7 @@ export default function (
             const isBasicLoginEnabled = Object.keys(schema.paths).includes('/api/auth/login');
             const isPasswordResetEnabled = Object.keys(schema.paths).includes('/api/auth/password/reset');
             const isPasswordChangeEnabled = Object.keys(schema.paths).includes('/api/auth/password/change');
+            const isSSOEnabled = Object.keys(schema.paths).includes('/api/auth/sso/azure/login');
 
             return {
                 ...state,
@@ -47,6 +49,7 @@ export default function (
                     isBasicLoginEnabled,
                     isPasswordResetEnabled,
                     isPasswordChangeEnabled,
+                    isSSOEnabled,
                 },
             };
         }

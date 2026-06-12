@@ -6,6 +6,9 @@ import { connect } from 'react-redux';
 import LoginPageComponent from 'components/login-page/login-page';
 import { CombinedState } from 'reducers';
 import { loginAsync } from 'actions/auth-actions';
+import { getCore } from 'cvat-core-wrapper';
+
+const core = getCore();
 
 interface StateToProps {
     fetching: boolean;
@@ -13,6 +16,8 @@ interface StateToProps {
     hasEmailVerificationBeenSent: boolean;
     renderRegistrationComponent: boolean;
     renderBasicLoginComponent: boolean;
+    renderSSOComponent: boolean;
+    ssoLoginURL: string;
 }
 
 interface DispatchToProps {
@@ -25,6 +30,8 @@ function mapStateToProps(state: CombinedState): StateToProps {
         renderResetPassword: state.serverAPI.configuration.isPasswordResetEnabled,
         renderRegistrationComponent: state.serverAPI.configuration.isRegistrationEnabled,
         renderBasicLoginComponent: state.serverAPI.configuration.isBasicLoginEnabled,
+        renderSSOComponent: state.serverAPI.configuration.isSSOEnabled,
+        ssoLoginURL: `${core.config.backendAPI}/auth/sso/azure/login`,
         hasEmailVerificationBeenSent: state.auth.hasEmailVerificationBeenSent,
     };
 }

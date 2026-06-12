@@ -489,6 +489,7 @@ export interface ServerAPIState {
         isBasicLoginEnabled: boolean;
         isPasswordResetEnabled: boolean;
         isPasswordChangeEnabled: boolean;
+        isSSOEnabled: boolean;
     };
 }
 

@@ -16,6 +16,8 @@ interface LoginPageComponentProps {
     renderResetPassword: boolean;
     renderRegistrationComponent: boolean;
     renderBasicLoginComponent: boolean;
+    renderSSOComponent: boolean;
+    ssoLoginURL: string;
     hasEmailVerificationBeenSent: boolean;
     onLogin: (credential: string, password: string) => void;
 }
@@ -24,7 +26,7 @@ function LoginPageComponent(props: LoginPageComponentProps & RouteComponentProps
     const history = useHistory();
     const {
         fetching, renderResetPassword, renderRegistrationComponent, renderBasicLoginComponent,
-        hasEmailVerificationBeenSent, onLogin,
+        renderSSOComponent, ssoLoginURL, hasEmailVerificationBeenSent, onLogin,
     } = props;
 
     if (hasEmailVerificationBeenSent) {
@@ -40,6 +42,8 @@ function LoginPageComponent(props: LoginPageComponentProps & RouteComponentProps
                             renderResetPassword={renderResetPassword}
                             renderRegistrationComponent={renderRegistrationComponent}
                             renderBasicLoginComponent={renderBasicLoginComponent}
+                            renderSSOComponent={renderSSOComponent}
+                            ssoLoginURL={ssoLoginURL}
                             onSubmit={(loginData: LoginData): void => {
                                 onLogin(loginData.credential, loginData.password);
                             }}

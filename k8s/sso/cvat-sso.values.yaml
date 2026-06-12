@@ -1,0 +1,53 @@
+# Helm values override that enables Azure Entra ID SSO for CVAT.
+#
+# Use together with the upstream CVAT chart in ./helm-chart and your own
+# base values. Example:
+#
+#   helm upgrade --install cvat ./helm-chart \
+#     --namespace cvat --create-namespace \
+#     -f my-base.values.yaml \
+#     -f k8s/sso/cvat-sso.values.yaml
+#
+# IMPORTANT:
+#   * Replace the image repositories/tags with the custom images you built
+#     from this branch (they contain the SSO code).
+#   * Apply k8s/sso/cvat-sso-secret.yaml before installing.
+#   * Set cvat.frontend... ingress host so it matches Entra ID's redirect URI.
+
+cvat:
+  backend:
+    # Custom images built from this branch (see SSO_AZURE_ENTRA_ID.md).
+    image: <your-registry>/cvat-server
+    tag: sso
+    # Applied to every backend deployment (server + all workers).
+    additionalEnv:
+      - name: CVAT_SSO_ENABLED
+        value: "true"
+      # Set to "true" to remove username/password login entirely and make
+      # Entra ID the ONLY way to sign in. Keep "false" until you have verified
+      # SSO works, so you do not lock yourself out.
+      - name: CVAT_SSO_DISABLE_BASIC_LOGIN
+        value: "false"
+      # Comma-separated list of Entra ID app role "value"s that map to a CVAT
+      # super admin. Everyone else gets regular ("user") access.
+      - name: CVAT_SSO_ADMIN_ROLES
+        value: "admin"
+      - name: CVAT_SSO_AZURE_TENANT_ID
+        valueFrom:
+          secretKeyRef:
+            name: cvat-sso
+            key: tenant_id
+      - name: CVAT_SSO_AZURE_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: cvat-sso
+            key: client_id
+      - name: CVAT_SSO_AZURE_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: cvat-sso
+            key: client_secret
+
+  frontend:
+    image: <your-registry>/cvat-ui
+    tag: sso

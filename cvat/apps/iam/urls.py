@@ -20,13 +20,19 @@ from cvat.apps.iam.views import ConfirmEmailViewEx, LoginViewEx, RegisterViewEx,
 BASIC_LOGIN_PATH_NAME = "rest_login"
 BASIC_REGISTER_PATH_NAME = "rest_register"
 
+BASIC_LOGIN_ENABLED = getattr(settings, "IAM_BASIC_LOGIN_ENABLED", True)
+
 urlpatterns = [
-    path("login", LoginViewEx.as_view(), name=BASIC_LOGIN_PATH_NAME),
     path("logout", LogoutView.as_view(), name="rest_logout"),
     path("rules", RulesView.as_view(), name="rules"),
 ]
 
-if settings.IAM_TYPE == "BASIC":
+if BASIC_LOGIN_ENABLED:
+    urlpatterns += [
+        path("login", LoginViewEx.as_view(), name=BASIC_LOGIN_PATH_NAME),
+    ]
+
+if settings.IAM_TYPE == "BASIC" and BASIC_LOGIN_ENABLED:
     urlpatterns += [
         path("register", RegisterViewEx.as_view(), name=BASIC_REGISTER_PATH_NAME),
     ]
@@ -69,5 +75,12 @@ if settings.IAM_TYPE == "BASIC":
                 name="account_confirm_email",
             ),
         ]
+
+if getattr(settings, "SSO_ENABLED", False):
+    from cvat.apps.iam.sso import SSOLoginRedirectView
+
+    urlpatterns += [
+        path("sso/azure/login", SSOLoginRedirectView.as_view(), name="sso_azure_login"),
+    ]
 
 urlpatterns = [path("auth/", include(urlpatterns))]

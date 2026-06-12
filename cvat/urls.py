@@ -20,6 +20,7 @@ Including another URLconf
 
 from django.apps import apps
 from django.contrib import admin
+from django.conf import settings
 from django.urls import include, path
 
 urlpatterns = [
@@ -28,6 +29,10 @@ urlpatterns = [
     path("", include("cvat.apps.redis_handler.urls")),
     path("django-rq/", include("django_rq.urls")),
 ]
+
+if getattr(settings, "SSO_ENABLED", False):
+    # OpenID Connect (Azure Entra ID) login/callback and allauth support views.
+    urlpatterns.append(path("", include("cvat.apps.iam.sso_urls")))
 
 if apps.is_installed("cvat.apps.log_viewer"):
     urlpatterns.append(path("", include("cvat.apps.log_viewer.urls")))
