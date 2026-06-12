@@ -190,6 +190,14 @@ def oidc_callback(request, provider_id):
     return view(request)
 
 
+def oauth2_login(request):
+    return oidc_login(request, settings.SSO_AZURE_PROVIDER_ID)
+
+
+def oauth2_callback(request):
+    return oidc_callback(request, settings.SSO_AZURE_PROVIDER_ID)
+
+
 class SSOLoginRedirectView(APIView):
     """
     Entry point used by the frontend "Sign in with Microsoft" button.

@@ -77,10 +77,12 @@ if settings.IAM_TYPE == "BASIC" and BASIC_LOGIN_ENABLED:
         ]
 
 if getattr(settings, "SSO_ENABLED", False):
-    from cvat.apps.iam.sso import SSOLoginRedirectView
+    from cvat.apps.iam.sso import SSOLoginRedirectView, oauth2_login, oauth2_callback
 
     urlpatterns += [
         path("sso/azure/login", SSOLoginRedirectView.as_view(), name="sso_azure_login"),
+        path("oauth2/login", oauth2_login, name="oauth2_login"),
+        path("oauth2/login/callback", oauth2_callback, name="oauth2_callback"),
     ]
 
 urlpatterns = [path("auth/", include(urlpatterns))]
