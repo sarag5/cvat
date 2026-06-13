@@ -199,7 +199,41 @@ helm upgrade --install cvat ./helm-chart \
 > and that the redirect URI registered in Entra ID is
 > `https://<CVAT_HOST>/accounts/oidc/azure/login/callback/`.
 
-### 5.4 TLS / proxy notes
+### 5.4 Add `/accounts` ingress rule
+
+The Helm chart does **not** include an ingress rule for `/accounts/` by default.
+The allauth OIDC login and callback endpoints live under `/accounts/oidc/...` and
+must be routed to the backend. Without this, the frontend's catch-all `/` rule
+serves the React HTML instead.
+
+**After `helm install`**, patch the ingress:
+
+```bash
+kubectl -n cvat patch ingress cvat --type=json -p '[
+  {"op":"add","path":"/spec/rules/0/http/paths/0","value":{
+    "backend":{"service":{"name":"cvat-backend-service","port":{"name":"http"}}},
+    "path":"/accounts",
+    "pathType":"Prefix"
+  }}
+]'
+```
+
+Or add it permanently to your values file:
+
+```yaml
+ingress:
+  annotations: {}
+  hosts:
+    - host: localhost
+      paths:
+        - path: /accounts
+          pathType: Prefix
+          service:
+            name: cvat-backend-service
+            port: http
+```
+
+### 5.5 TLS / proxy notes
 
 * CVAT already sets `SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO","https")`
   and `USE_X_FORWARDED_HOST=True`. Ensure your Traefik/NGINX ingress forwards the
@@ -207,7 +241,46 @@ helm upgrade --install cvat ./helm-chart \
   generated as `https://<CVAT_HOST>/...` and matches Entra ID.
 * Add your public host to `ALLOWED_HOSTS` (env var) if it is not already covered.
 
-### 5.5 Verify
+### 5.6 Probe tuning for resource-constrained environments (e.g. k3d / Docker Desktop)
+
+On systems with limited RAM (< 8 GB), the backend startup (collectstatic + Django
+loading) can take 10+ minutes. KVRocks and Redis probes may also time out. Patch
+the probe settings after deployment:
+
+```bash
+# Backend server: give it time to start
+kubectl -n cvat patch deployment cvat-backend-server --type=json -p '[
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":600},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/timeoutSeconds","value":30},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/periodSeconds","value":30},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/failureThreshold","value":30},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":600},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/timeoutSeconds","value":30},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/periodSeconds","value":30}
+]'
+
+# KVRocks: increase probe timeouts
+kubectl -n cvat patch statefulset cvat-kvrocks --type=json -p '[
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/timeoutSeconds","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/failureThreshold","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/periodSeconds","value":20},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/timeoutSeconds","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/failureThreshold","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/periodSeconds","value":20}
+]'
+
+# Redis: increase probe timeouts
+kubectl -n cvat patch statefulset cvat-redis-master --type=json -p '[
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/timeoutSeconds","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/failureThreshold","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/periodSeconds","value":15},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/timeoutSeconds","value":15},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/failureThreshold","value":10},
+  {"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/periodSeconds","value":15}
+]'
+```
+
+### 5.7 Verify
 
 ```bash
 kubectl -n cvat get pods
@@ -218,7 +291,7 @@ Browse to `https://<CVAT_HOST>`, you should see the **Sign in with Microsoft**
 button. Sign in with an admin-role account and confirm super-admin access, then
 with a regular account and confirm standard access.
 
-### 5.6 Make Entra ID the only login method
+### 5.8 Make Entra ID the only login method
 
 Once SSO works, lock down basic login by setting on the backend:
 
@@ -268,7 +341,68 @@ sequenceDiagram
 | ------- | ------------------ |
 | `redirect_uri_mismatch` (AADSTS50011) | The redirect URI in Entra ID must exactly equal `https://<CVAT_HOST>/accounts/oidc/azure/login/callback/`. Check `CVAT_HOST` and ingress `X-Forwarded-Proto`. |
 | Callback URL is `http://` not `https://` | Ingress is not forwarding `X-Forwarded-Proto: https`. |
+| `/accounts/oidc/azure/login/` returns React HTML (not a redirect) | The `/accounts` ingress path rule is missing — the frontend's catch-all `/` is serving the request. See section 5.4. |
+| `/accounts/oidc/azure/login/` shows a confirmation page ("Continue" button) instead of auto-redirecting | `SOCIALACCOUNT_LOGIN_ON_GET = True` is not set. Already included in this branch's `base.py`. |
+| `NoReverseMatch: Reverse for 'account_login' not found` | The allauth core account URLs are not mounted. `sso_urls.py` must include `allauth.urls` (not just `allauth.socialaccount.urls`). |
+| `/api/server/health/` returns 500 | KVRocks or Redis is down. Check `kubectl -n cvat get pods` — look for CrashLoopBackOff. Increase probe timeouts (section 5.6). |
+| Backend pod stuck at 1/2 Running | Readiness probe hasn't passed yet; on low-RAM systems, startup takes 10+ minutes. Wait or reduce the probe `initialDelaySeconds`. |
+| Frontend CrashLoopBackOff (nginx permission denied) | `Dockerfile.ui` must use `--chown=101:101` on COPY directives for nginx-unprivileged images. |
+| PVC Pending (local-path provisioner) | k3d/k3s local-path only supports `ReadWriteOnce`. Set `defaultStorage.accessModes: [ReadWriteOnce]` in values. |
 | Admins are not getting super-admin rights | The app role **Value** must be in `CVAT_SSO_ADMIN_ROLES`, and the user must be **assigned** that app role in *Enterprise applications → Users and groups*. |
 | `ImproperlyConfigured: CVAT_SSO_ENABLED is set ...` | One of tenant/client id/secret env vars is missing on the backend pods. |
 | User created without e-mail | Add the optional `email` claim in *Token configuration* of the app registration. |
 | Locked out after disabling basic login | Re-enable basic login (`CVAT_SSO_DISABLE_BASIC_LOGIN=false`) and use the local superuser, or `kubectl exec` into the server pod and run `python manage.py changepassword <user>`. |
+
+---
+
+## 8. k3d local development quick-start
+
+For running on a single machine with k3d (Docker Desktop):
+
+```bash
+# 1. Create cluster with port mapping
+k3d cluster create cvat -p "8080:80@loadbalancer"
+
+# 2. Build images
+docker build -t cvat/server:sso -f Dockerfile .
+docker build -t cvat/ui:sso -f Dockerfile.ui .
+
+# 3. Import images into k3d (no registry needed)
+k3d image import cvat/server:sso cvat/ui:sso -c cvat
+
+# 4. Create namespace + secret
+kubectl create namespace cvat
+kubectl -n cvat create secret generic cvat-sso \
+  --from-literal=tenant_id=<YOUR_TENANT_ID> \
+  --from-literal=client_id=<YOUR_CLIENT_ID> \
+  --from-literal=client_secret=<YOUR_CLIENT_SECRET>
+
+# 5. Install chart
+helm dependency update ./helm-chart
+helm upgrade --install cvat ./helm-chart \
+  --namespace cvat \
+  -f k8s/sso/cvat-sso.values.yaml
+
+# 6. Patch ingress to route /accounts to backend
+kubectl -n cvat patch ingress cvat --type=json -p '[
+  {"op":"add","path":"/spec/rules/0/http/paths/0","value":{
+    "backend":{"service":{"name":"cvat-backend-service","port":{"name":"http"}}},
+    "path":"/accounts",
+    "pathType":"Prefix"
+  }}
+]'
+
+# 7. (If low RAM) Apply probe patches from section 5.6
+
+# 8. Wait for all pods to be ready (~10-15 min on first start)
+kubectl -n cvat get pods -w
+
+# 9. Register redirect URI in Azure:
+#    http://localhost:8080/accounts/oidc/azure/login/callback/
+
+# 10. Open http://localhost:8080 and test SSO
+```
+
+> **Note:** Docker Desktop should have at least 8 GB RAM allocated. With 4 GB
+> you will need the probe patches from section 5.6 and may see ClickHouse OOM
+> (analytics is non-critical).
