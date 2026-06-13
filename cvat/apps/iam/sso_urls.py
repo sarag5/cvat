@@ -28,6 +28,6 @@ oidc_urlpatterns = [
 urlpatterns = [
     # Support views used by allauth while completing a social login
     # (signup, login error/cancelled pages, account connections).
-    path("accounts/", include("allauth.socialaccount.urls")),
+    path("accounts/", include("allauth.urls")),
     path("accounts/", include(oidc_urlpatterns)),
 ]

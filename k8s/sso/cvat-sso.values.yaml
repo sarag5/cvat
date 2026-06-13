@@ -17,8 +17,15 @@
 cvat:
   backend:
     # Custom images built from this branch (see SSO_AZURE_ENTRA_ID.md).
-    image: <your-registry>/cvat-server
+    image: cvat/server
     tag: sso
+    imagePullPolicy: IfNotPresent
+    # Override PVC access mode for k3d/local-path (only supports ReadWriteOnce)
+    defaultStorage:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
     # Applied to every backend deployment (server + all workers).
     additionalEnv:
       - name: CVAT_SSO_ENABLED
@@ -47,7 +54,10 @@ cvat:
           secretKeyRef:
             name: cvat-sso
             key: client_secret
+      - name: CVAT_HOST
+        value: "localhost"
 
   frontend:
-    image: <your-registry>/cvat-ui
+    image: cvat/ui
     tag: sso
+    imagePullPolicy: IfNotPresent

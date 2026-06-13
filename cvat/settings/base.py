@@ -327,6 +327,7 @@ if SSO_ENABLED:
     INSTALLED_APPS += ["allauth.socialaccount.providers.openid_connect"]
 
     SOCIALACCOUNT_ADAPTER = "cvat.apps.iam.sso.SSOSocialAccountAdapter"
+    SOCIALACCOUNT_LOGIN_ON_GET = True
     SOCIALACCOUNT_AUTO_SIGNUP = True
     SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
     SOCIALACCOUNT_EMAIL_REQUIRED = False
